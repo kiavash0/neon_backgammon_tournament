@@ -6,7 +6,8 @@ from fastapi import FastAPI
 from app.auth.router import router as auth_router
 from app.lobby.router import router as lobby_router
 from app.lobby.service import ensure_pools
-from app.realtime.manager import LobbyConnectionManager
+from app.match.runtime import MatchRuntimeManager
+from app.realtime.manager import LobbyConnectionManager, UserConnectionRegistry
 from app.realtime.router import router as realtime_router
 from app.security.fraud_gate import assert_safe_to_boot
 from app.storage.factory import get_storage_backend
@@ -17,6 +18,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     assert_safe_to_boot()
     app.state.storage = get_storage_backend()
     app.state.lobby_manager = LobbyConnectionManager()
+    app.state.connections = UserConnectionRegistry()
+    app.state.match_runtimes = MatchRuntimeManager()
     ensure_pools(app.state.storage)
     yield
     app.state.storage.close()

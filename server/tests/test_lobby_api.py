@@ -97,7 +97,7 @@ def test_websocket_receives_room_update_broadcast(client):
     token = signup_and_login(client, "alice")
     room_id = client.get("/lobby").json()["rooms"][0]["id"]
 
-    with client.websocket_connect("/ws") as ws:
+    with client.websocket_connect(f"/ws?token={token}") as ws:
         ws.send_json({"type": "subscribe_lobby"})
         snapshot = ws.receive_json()
         assert snapshot["type"] == "lobby_snapshot"
