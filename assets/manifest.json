@@ -1,0 +1,33 @@
+{
+  "_comment": "Asset manifest per SPEC §11. Client UIs resolve theme assets through this file, never hardcoded paths, so final art drops in without code changes.",
+  "default_theme": "neon",
+  "themes": {
+    "neon":     { "board": "models/boards/board_neon.glb",     "carpet": "models/carpets/carpet_neon.glb",     "fullset": "models/fullsets/fullset_neon.glb" },
+    "vegas":    { "board": "models/boards/board_vegas.glb",    "carpet": "models/carpets/carpet_vegas.glb",    "fullset": "models/fullsets/fullset_vegas.glb" },
+    "london":   { "board": "models/boards/board_london.glb",   "carpet": "models/carpets/carpet_london.glb",   "fullset": "models/fullsets/fullset_london.glb" },
+    "persian":  { "board": "models/boards/board_persian.glb",  "carpet": "models/carpets/carpet_persian.glb",  "fullset": "models/fullsets/fullset_persian.glb" },
+    "classic":  { "board": "models/boards/board_classic.glb",  "carpet": "models/carpets/carpet_classic.glb",  "fullset": "models/fullsets/fullset_classic.glb" },
+    "rome":     { "board": "models/boards/board_rome.glb",     "carpet": "models/carpets/carpet_rome.glb",     "fullset": "models/fullsets/fullset_rome.glb" },
+    "indian":   { "board": "models/boards/board_indian.glb",   "carpet": "models/carpets/carpet_indian.glb",   "fullset": "models/fullsets/fullset_indian.glb" },
+    "arabic":   { "board": "models/boards/board_arabic.glb",   "carpet": "models/carpets/carpet_arabic.glb",   "fullset": "models/fullsets/fullset_arabic.glb" },
+    "paris":    { "board": "models/boards/board_paris.glb",    "carpet": "models/carpets/carpet_paris.glb",    "fullset": "models/fullsets/fullset_paris.glb" },
+    "china":    { "board": "models/boards/board_china.glb",    "carpet": "models/carpets/carpet_china.glb",    "fullset": "models/fullsets/fullset_china.glb" },
+    "istanbul": { "board": "models/boards/board_istanbul.glb", "carpet": "models/carpets/carpet_istanbul.glb", "fullset": "models/fullsets/fullset_istanbul.glb" }
+  },
+  "checkers_sets": {
+    "vegasSet":    "models/checkers/checkers_vegasSet.glb",
+    "maroonIvory": "models/checkers/checkers_maroonIvory.glb",
+    "ivoryOnyx":   "models/checkers/checkers_ivoryOnyx.glb",
+    "cyberNeon":   "models/checkers/checkers_cyberNeon.glb"
+  },
+  "dice_sets": {
+    "black": "models/dice/dice_black.glb",
+    "white": "models/dice/dice_white.glb",
+    "red":   "models/dice/dice_red.glb",
+    "neon":  "models/dice/dice_neon.glb"
+  },
+  "accessories": {
+    "doubling_cube": "models/accessories/doubling-cube.glb",
+    "dice_cup": "models/accessories/dice-cup.glb"
+  }
+}
