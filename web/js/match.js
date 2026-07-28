@@ -7,7 +7,7 @@ export class MatchController {
     this.mid = null;
     this.yourColor = null;
     this.board = new Board(document.getElementById("board-root"), {
-      onMoveChosen: (seq) => this._submitMove(seq),
+      onMoveChosen: (seq, done) => this._submitMove(seq, done),
     });
     this.timerInterval = null;
     document.getElementById("btn-resign").addEventListener("click", () => this._resign());
@@ -34,7 +34,17 @@ export class MatchController {
     if (msg.mid !== this.mid) return;
     this._setSubmitting(false);
     const el = document.getElementById("dice-display");
-    el.innerHTML = `<div class="die">${msg.d1}</div><div class="die">${msg.d2}</div>`;
+    // Doubles grant four moves (SPEC §4.2) — show four dice so the move
+    // count is obvious at a glance.
+    const dice = msg.d1 === msg.d2 ? [msg.d1, msg.d1, msg.d1, msg.d1] : [msg.d1, msg.d2];
+    el.innerHTML = dice.map((d) => `<div class="die">${d}</div>`).join("");
+  }
+
+  handleOpponentMove(msg) {
+    if (msg.mid !== this.mid) return;
+    for (const mv of msg.move || []) {
+      this.board.applyRemote(mv);
+    }
   }
 
   handleState(msg) {
@@ -60,9 +70,11 @@ export class MatchController {
     document.getElementById("match-status").textContent = "Match finished.";
   }
 
-  _submitMove(seq) {
-    this._setSubmitting(true);
+  _submitMove(seq, done) {
     ws.send({ type: "move", mid: this.mid, seq });
+    // Only dim the board once the turn has no moves left — dimming between
+    // atomic picks would block the next click of the same turn.
+    if (done) this._setSubmitting(true);
   }
 
   clearSubmitting() {

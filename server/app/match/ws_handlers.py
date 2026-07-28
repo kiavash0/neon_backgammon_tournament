@@ -77,6 +77,11 @@ async def handle_match_ready(app: FastAPI, user, mid: str | None) -> None:
 
         if match.status == service.RUNNING:
             state = service.state_from_match(match)
+            # We are about to (re)send the turn-start state with the full set
+            # of legal sequences; if the requester is the mover mid-prefix,
+            # restart the turn so client and server agree on what's left.
+            if runtime.turn_prefix and state.turn == service.color_for_user(match, user.id):
+                runtime.turn_prefix = []
             if runtime.dice is None:
                 # Fresh runtime with no in-memory turn state — either the very
                 # first ready ping right as the match started, or (SPEC §5.2
@@ -113,9 +118,13 @@ async def _handle_reconnect(app: FastAPI, match, runtime: MatchRuntime, user_id:
     if match.status != service.RUNNING:
         return
     state = service.state_from_match(match)
+    your_turn = state.turn == service.color_for_user(match, user_id)
+    if your_turn and runtime.turn_prefix:
+        # Mid-prefix reconnect: the turn restarts from its persisted start
+        # state (nothing mid-turn is ever persisted), so drop the prefix.
+        runtime.turn_prefix = []
     await _send(app, user_id, await _state_message(match, state, user_id, runtime))
 
-    your_turn = state.turn == service.color_for_user(match, user_id)
     if your_turn and runtime.dice is not None and runtime.turn_timer_task is None:
         runtime.generation += 1
         gen = runtime.generation
@@ -144,6 +153,7 @@ async def _advance_turn(app: FastAPI, match, state) -> None:
         await _advance_turn(app, match, state)
         return
 
+    runtime.turn_prefix = []
     runtime.generation += 1
     gen = runtime.generation
     for uid in (match.player_white_id, match.player_black_id):
@@ -171,26 +181,54 @@ async def handle_move(app: FastAPI, user, mid: str | None, raw_seq: list) -> Non
         await _send_error(app, user.id, "not_active", "no active turn to move in")
         return
 
+    if not raw_seq:
+        await _send_error(app, user.id, "bad_request", "empty move")
+        return
+
     async with runtime.lock:
+        # Nothing is persisted mid-turn, so the stored state is always the
+        # turn-start state; runtime.turn_prefix holds the atomic moves the
+        # mover has already committed this turn (submitted one die at a time
+        # for instant per-checker feedback on both boards).
         state = service.state_from_match(match)
         try:
-            match, new_state, winner_color = service.apply_client_move(
-                storage, match, state, runtime.dice, user.id, raw_seq,
-                runtime.move_seq_counter, runtime.roll_index,
-            )
-        except service.NotYourTurn:
+            color = service.color_for_user(match, user.id)
+        except service.NotAParticipant:
+            await _send_error(app, user.id, "forbidden", "not a participant in this match")
+            return
+        if state.turn != color:
             await _send_error(app, user.id, "not_your_turn", "it is not your turn")
             return
-        except service.IllegalClientMove:
+
+        new_moves = service.moves_from_raw(raw_seq)
+        candidate = tuple(runtime.turn_prefix) + new_moves
+        full_options = legal_moves(state, runtime.dice)
+        if not any(s[: len(candidate)] == candidate for s in full_options):
             await _send_error(app, user.id, "illegal_move", "submitted move is not legal")
             return
 
-        runtime.move_seq_counter += len(raw_seq)
+        opponent = service.opponent_id(match, user.id)
+        await _send(
+            app,
+            opponent,
+            {"type": "opponent_move", "mid": mid, "move": [list(m) for m in new_moves]},
+        )
+
+        complete = not any(
+            len(s) > len(candidate) for s in full_options if s[: len(candidate)] == candidate
+        )
+        if not complete:
+            runtime.turn_prefix = list(candidate)
+            return
+
+        match, new_state, winner_color = service.apply_client_move(
+            storage, match, state, runtime.dice, user.id, [list(m) for m in candidate],
+            runtime.move_seq_counter, runtime.roll_index,
+        )
+        runtime.move_seq_counter += len(candidate)
+        runtime.turn_prefix = []
         runtime.cancel_turn_timer()
         runtime.consecutive_timeouts[user.id] = 0
-
-        opponent = service.opponent_id(match, user.id)
-        await _send(app, opponent, {"type": "opponent_move", "mid": mid, "move": raw_seq})
 
         if winner_color is not None:
             await _finish_and_broadcast(
@@ -285,7 +323,16 @@ async def _on_turn_timeout(app: FastAPI, match_id: str, generation: int) -> None
         runtime.consecutive_timeouts[mover_id] = runtime.consecutive_timeouts.get(mover_id, 0) + 1
 
         options = legal_moves(state, runtime.dice)
-        chosen = options[0] if len(options) == 1 else ()
+        prefix = tuple(runtime.turn_prefix)
+        if prefix:
+            # Mover committed part of the turn then stalled: complete it with
+            # the first legal continuation rather than snapping their already-
+            # visible moves back off the board.
+            candidates = [s for s in options if s[: len(prefix)] == prefix]
+            chosen = candidates[0] if candidates else ()
+        else:
+            chosen = options[0] if len(options) == 1 else ()
+        runtime.turn_prefix = []
 
         match, new_state, winner_color = service.apply_forced_move(
             storage, match, state, chosen, runtime.move_seq_counter, runtime.roll_index
@@ -293,13 +340,16 @@ async def _on_turn_timeout(app: FastAPI, match_id: str, generation: int) -> None
         runtime.move_seq_counter += len(chosen)
 
         opponent = service.opponent_id(match, mover_id)
+        # The opponent already saw the prefix land move-by-move; only send
+        # the part the server filled in.
+        suffix = chosen[len(prefix):] if prefix else chosen
         await _send(
             app,
             opponent,
             {
                 "type": "opponent_move",
                 "mid": match_id,
-                "move": [list(m) for m in chosen],
+                "move": [list(m) for m in suffix],
                 "timeout": True,
             },
         )

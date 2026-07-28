@@ -138,6 +138,7 @@ async function main() {
   ws.on("match_start", (msg) => matchController.handleMatchStart(msg));
   ws.on("dice", (msg) => matchController.handleDice(msg));
   ws.on("state", (msg) => matchController.handleState(msg));
+  ws.on("opponent_move", (msg) => matchController.handleOpponentMove(msg));
   ws.on("match_result", (msg) => {
     matchController.handleMatchResult(msg);
     refreshBalance();

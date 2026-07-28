@@ -62,6 +62,13 @@ def drain_until_result(ws):
             return msg
 
 
+def drain_until_types(ws, types):
+    while True:
+        msg = ws.receive_json()
+        if msg["type"] in types:
+            return msg
+
+
 # -- full game -------------------------------------------------------------
 
 
@@ -360,6 +367,57 @@ def test_both_players_disconnected_ends_in_double_forfeit(monkeypatch):
         finished = app.state.storage.get_match(match.id)
         assert finished.status == "FINISHED"
         assert finished.winner_id in (white_id, black_id)
+
+
+def test_moves_can_be_submitted_one_die_at_a_time(client):
+    """Each atomic move is an independent submission: the server validates it
+    as a prefix of some legal sequence, pushes it to the opponent immediately,
+    and only advances the turn once the sequence has no continuation — no
+    end-of-turn batching (the 'all 4 checkers teleport at once on a double'
+    bug, reported by a user)."""
+    token_w = signup_and_login(client, "alice")
+    token_b = signup_and_login(client, "bob")
+    white_id, black_id = user_id(client, token_w), user_id(client, token_b)
+    match = create_pending_match(white_id, black_id)
+
+    with (
+        client.websocket_connect(f"/ws?token={token_w}") as ws_w,
+        client.websocket_connect(f"/ws?token={token_b}") as ws_b,
+    ):
+        ws_w.send_json({"type": "match_ready", "mid": match.id})
+        ws_b.send_json({"type": "match_ready", "mid": match.id})
+        ws_w.receive_json()  # match_start
+        ws_b.receive_json()  # match_start
+
+        msg_w = drain_until_state_or_result(ws_w)
+        msg_b = drain_until_state_or_result(ws_b)
+        mover_msg, mover_ws, waiter_ws = (
+            (msg_w, ws_w, ws_b) if msg_w["your_turn"] else (msg_b, ws_b, ws_w)
+        )
+
+        seq = next(s for s in mover_msg["legal_moves"] if len(s) >= 2)
+
+        # Submit every atomic move separately; the opponent must receive each
+        # one as its own opponent_move BEFORE any turn-advancing state message.
+        for mv in seq:
+            mover_ws.send_json({"type": "move", "mid": match.id, "seq": [mv]})
+            pushed = drain_until_types(waiter_ws, ("opponent_move", "state"))
+            assert pushed["type"] == "opponent_move"
+            assert pushed["move"] == [mv]
+
+        # Only now — after the final atomic move — does the turn advance.
+        next_w = drain_until_state_or_result(ws_w)
+        next_b = drain_until_state_or_result(ws_b)
+        mover_next = next_w if mover_ws is ws_w else next_b
+        waiter_next = next_b if mover_ws is ws_w else next_w
+        assert mover_next["your_turn"] is False
+        assert waiter_next["your_turn"] is True
+
+        # And the applied sequence was persisted.
+        stored = app.state.storage.get_match(match.id)
+        moves_logged = app.state.storage.list_game_moves(match.id)
+        assert stored.status == "RUNNING"
+        assert len(moves_logged) == len(seq)
 
 
 def test_resume_after_process_restart_gets_playable_state(client):

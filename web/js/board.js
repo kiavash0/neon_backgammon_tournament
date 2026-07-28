@@ -52,10 +52,9 @@ export class Board {
 
   // Mirrors the server engine's single-atomic-move application (SPEC §4.5
   // apply_move) just enough to update the board instantly, before the
-  // server round-trip confirms the whole sequence.
-  _applyLocal(move) {
+  // server round-trip confirms it.
+  _applyLocal(move, color) {
     const [frm, to] = move;
-    const color = this.yourColor;
     const s = this.displayState;
     const points = s.points.slice();
 
@@ -111,15 +110,21 @@ export class Board {
     if (!match) return;
     this.prefix.push(match);
     this.selectedFrom = null;
-    this._applyLocal(match); // move the checker on screen right now, don't wait for the server
+    this._applyLocal(match, this.yourColor); // move this checker on screen right now
 
+    // Each atomic move is submitted to the server independently, the moment
+    // it's picked — never buffered into an end-of-turn batch. `done` just
+    // tells the controller the turn has no continuations left.
     const remaining = this._candidates();
     const done = remaining.every((seq) => seq.length === this.prefix.length);
-    if (done) {
-      const chosen = this.prefix;
-      this.prefix = [];
-      this.onMoveChosen(chosen);
-    }
+    this.onMoveChosen([match], done);
+    this._draw();
+  }
+
+  // A single move made by the opponent, pushed live from the server.
+  applyRemote(move) {
+    if (!this.displayState) return;
+    this._applyLocal(move, -this.yourColor);
     this._draw();
   }
 

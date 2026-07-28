@@ -17,6 +17,10 @@ class MatchRuntime:
     ready: set[str] = field(default_factory=set)
     roll_index: int = -1  # incremented each roll, for audit logging
     move_seq_counter: int = 0  # running position in the match's move log
+    # Atomic moves the mover has already committed this turn (submitted one
+    # die at a time). Nothing is persisted until the sequence completes, so
+    # this is purely in-memory turn state — a restart simply restarts the turn.
+    turn_prefix: list = field(default_factory=list)
     generation: int = 0  # bumped whenever the turn advances or the match ends
     turn_timer_task: asyncio.Task | None = None
     consecutive_timeouts: dict[str, int] = field(default_factory=dict)
