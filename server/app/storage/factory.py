@@ -11,7 +11,11 @@ def get_storage_backend(
     selection is a config flag, never a hardcoded choice).
     """
     backend = (backend or os.environ.get("STORAGE_BACKEND", "sqlite")).lower()
-    path = path if path is not None else os.environ.get("STORAGE_PATH", ":memory:")
+    # Default to a real file, not ":memory:" — `make dev` runs uvicorn with
+    # --reload, and an in-memory DB silently wipes every account/room on every
+    # code change, leaving browsers holding tokens for users that no longer
+    # exist. Tests always pass an explicit ":memory:" path.
+    path = path if path is not None else os.environ.get("STORAGE_PATH", "./dev.sqlite3")
 
     if backend == "sqlite":
         from app.storage.sqlite_backend import SqliteBackend

@@ -37,19 +37,20 @@ def make_user(uid="u1", email="a@example.com") -> User:
 
 
 def test_factory_selects_sqlite_backend():
-    b = get_storage_backend(backend="sqlite")
+    b = get_storage_backend(backend="sqlite", path=":memory:")
     assert isinstance(b, SqliteBackend)
     b.close()
 
 
 def test_factory_selects_h5_backend():
-    b = get_storage_backend(backend="h5")
+    b = get_storage_backend(backend="h5", path=":memory:")
     assert isinstance(b, H5Backend)
     b.close()
 
 
 def test_factory_reads_env_vars(monkeypatch):
     monkeypatch.setenv("STORAGE_BACKEND", "h5")
+    monkeypatch.setenv("STORAGE_PATH", ":memory:")
     b = get_storage_backend()
     assert isinstance(b, H5Backend)
     b.close()

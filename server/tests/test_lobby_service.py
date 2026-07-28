@@ -77,15 +77,47 @@ def test_join_is_idempotent_for_same_room(storage):
     assert second.room.player_ids.count(user.id) == 1
 
 
-def test_cannot_join_second_room_while_registered(storage):
+def test_joining_another_open_room_switches_out_of_the_first(storage):
     service.ensure_pools(storage, now=NOW)
     room_a, room_b = storage.list_rooms(capacity=2, state=service.OPEN)[:2]
     user = make_user(storage, "alice")
 
     service.join_room(storage, room_id=room_a.id, user_id=user.id, now=NOW)
+    result = service.join_room(storage, room_id=room_b.id, user_id=user.id, now=NOW)
+
+    assert user.id in result.room.player_ids
+    assert result.left_room is not None
+    assert result.left_room.id == room_a.id
+    assert user.id not in storage.get_room(room_a.id).player_ids
+    assert storage.get_user(user.id).current_room_id == room_b.id
+
+
+def test_cannot_switch_rooms_while_in_an_active_tournament(storage):
+    service.ensure_pools(storage, now=NOW)
+    room_a, room_b = storage.list_rooms(capacity=2, state=service.OPEN)[:2]
+    alice = make_user(storage, "alice")
+    bob = make_user(storage, "bob")
+    service.join_room(storage, room_id=room_a.id, user_id=alice.id, now=NOW)
+    service.join_room(storage, room_id=room_a.id, user_id=bob.id, now=NOW)  # room now FULL
 
     with pytest.raises(service.AlreadyInRoomError):
-        service.join_room(storage, room_id=room_b.id, user_id=user.id, now=NOW)
+        service.join_room(storage, room_id=room_b.id, user_id=alice.id, now=NOW)
+
+
+def test_stale_registration_to_finished_room_self_heals_on_join(storage):
+    service.ensure_pools(storage, now=NOW)
+    room_a, room_b = storage.list_rooms(capacity=2, state=service.OPEN)[:2]
+    user = make_user(storage, "alice")
+    service.join_room(storage, room_id=room_a.id, user_id=user.id, now=NOW)
+
+    # Simulate an abandoned/completed tournament that never cleared the flag.
+    room_a = storage.get_room(room_a.id)
+    room_a.state = "FINISHED"
+    storage.update_room(room_a)
+
+    result = service.join_room(storage, room_id=room_b.id, user_id=user.id, now=NOW)
+    assert user.id in result.room.player_ids
+    assert storage.get_user(user.id).current_room_id == room_b.id
 
 
 def test_join_missing_room_raises(storage):

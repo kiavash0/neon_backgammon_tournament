@@ -34,3 +34,9 @@ class MeResponse(BaseModel):
     country: str
     created_at: str
     balance_usd: float
+    # Current lobby/tournament situation, so the client can show "you're
+    # registered in a room" with a Leave button, or offer rejoining an
+    # in-progress match after a page reload.
+    current_room: dict | None = None
+    active_tournament_id: str | None = None
+    active_match_id: str | None = None

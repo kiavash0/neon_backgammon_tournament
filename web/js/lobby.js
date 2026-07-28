@@ -18,7 +18,7 @@ export function initLobby({ onJoined }) {
   });
 }
 
-export function renderRooms(rooms) {
+export function renderRooms(rooms, myRoomId = null) {
   const grid = document.getElementById("room-grid");
   const bySize = new Map();
   for (const r of rooms) {
@@ -29,13 +29,19 @@ export function renderRooms(rooms) {
   grid.innerHTML = "";
   for (const capacity of [...bySize.keys()].sort((a, b) => a - b)) {
     const list = bySize.get(capacity);
-    const openest = list.find((r) => r.joined < r.capacity) || list[0];
+    // Show the room the user is already seated in, if it's this size —
+    // otherwise the most joinable one.
+    const mine = myRoomId ? list.find((r) => r.id === myRoomId) : null;
+    const shown = mine || list.find((r) => r.joined < r.capacity) || list[0];
     const card = document.createElement("div");
     card.className = "room-card";
+    const button = mine
+      ? `<button disabled>Joined — waiting</button>`
+      : `<button data-room-id="${shown.id}">Join</button>`;
     card.innerHTML = `
       <div class="cap">${capacity}</div>
-      <div class="occ">${openest.joined} / ${openest.capacity} joined · ${list.length} open</div>
-      <button data-room-id="${openest.id}">Join</button>
+      <div class="occ">${shown.joined} / ${shown.capacity} joined · ${list.length} open</div>
+      ${button}
     `;
     grid.appendChild(card);
   }

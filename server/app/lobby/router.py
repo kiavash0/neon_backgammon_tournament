@@ -35,6 +35,8 @@ async def join_room(
     await manager.broadcast(room_update_message(result.room))
     if result.replacement_room is not None:
         await manager.broadcast(room_update_message(result.replacement_room))
+    if result.left_room is not None:
+        await manager.broadcast(room_update_message(result.left_room))
 
     if result.room.state == service.FULL:
         await start_tournament(request.app, result.room)

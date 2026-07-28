@@ -66,15 +66,23 @@ def test_join_unknown_room_is_404(client):
     assert resp.status_code == 404
 
 
-def test_cannot_join_two_rooms_at_once(client):
+def test_joining_a_second_open_room_switches_seats(client):
     token = signup_and_login(client, "alice")
     rooms = [r["id"] for r in client.get("/lobby").json()["rooms"] if r["capacity"] == 2][:2]
 
     first = client.post(f"/rooms/{rooms[0]}/join", headers=auth_headers(token))
     assert first.status_code == 200
+    assert first.json()["joined"] == 1
 
     second = client.post(f"/rooms/{rooms[1]}/join", headers=auth_headers(token))
-    assert second.status_code == 409
+    assert second.status_code == 200
+    assert second.json()["joined"] == 1
+
+    # The first seat was released by the switch; still one room at a time.
+    lobby = {r["id"]: r for r in client.get("/lobby").json()["rooms"]}
+    assert lobby[rooms[0]]["joined"] == 0
+    me = client.get("/me", headers=auth_headers(token)).json()
+    assert me["current_room"]["id"] == rooms[1]
 
 
 def test_filling_a_room_spawns_a_replacement(client):

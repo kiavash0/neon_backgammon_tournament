@@ -39,6 +39,7 @@ class UserNotFoundError(RoomError):
 class JoinResult:
     room: Room
     replacement_room: Room | None  # set when this join filled the room
+    left_room: Room | None = None  # set when joining auto-switched out of another OPEN room
 
 
 def ensure_pools(storage: StorageBackend, now: datetime | None = None) -> list[Room]:
@@ -74,8 +75,26 @@ def join_room(
     if user_id in room.player_ids:
         return JoinResult(room=room, replacement_room=None)  # idempotent re-join
 
+    left_room = None
     if user.current_room_id is not None:
-        raise AlreadyInRoomError("already registered in a room")
+        prior = storage.get_room(user.current_room_id)
+        if prior is None or prior.state in ("FINISHED", "CANCELLED"):
+            # Stale registration (room long gone) — self-heal instead of
+            # locking the user out of the lobby forever.
+            user.current_room_id = None
+        elif prior.state == OPEN:
+            # Joining a different room while waiting in an OPEN one just
+            # switches rooms — still "at most one room at a time" (SPEC §5.1),
+            # without forcing the user through a manual leave first.
+            if user_id in prior.player_ids:
+                prior.player_ids.remove(user_id)
+                storage.update_room(prior)
+                left_room = prior
+            user.current_room_id = None
+        else:
+            # FULL / TOURNAMENT_RUNNING: a tournament is pending or active —
+            # that registration can't be abandoned by clicking another room.
+            raise AlreadyInRoomError("you are in an active tournament")
 
     if room.state != OPEN or len(room.player_ids) >= room.capacity:
         raise RoomNotJoinableError("room is not open for joining")
@@ -90,7 +109,7 @@ def join_room(
         replacement = _spawn_room(storage, room.capacity, now)
     storage.update_room(room)
 
-    return JoinResult(room=room, replacement_room=replacement)
+    return JoinResult(room=room, replacement_room=replacement, left_room=left_room)
 
 
 def leave_room(storage: StorageBackend, *, room_id: str, user_id: str) -> Room:

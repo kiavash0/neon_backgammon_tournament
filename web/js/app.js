@@ -9,6 +9,7 @@ const screens = ["auth", "lobby", "bracket", "match"];
 let currentUser = null;
 let currentTournamentId = null;
 let countdownInterval = null;
+let matchController = null;
 
 function showScreen(name) {
   for (const s of screens) {
@@ -56,13 +57,62 @@ async function refreshBalance() {
   }
 }
 
+let lobbyBannerAction = null;
+
+function renderLobbyBanner() {
+  const banner = document.getElementById("lobby-banner");
+  const text = document.getElementById("lobby-banner-text");
+  const button = document.getElementById("lobby-banner-action");
+  const room = currentUser?.current_room;
+
+  if (!room) {
+    banner.hidden = true;
+    lobbyBannerAction = null;
+    return;
+  }
+
+  banner.hidden = false;
+  if (room.state === "OPEN") {
+    text.textContent =
+      `You're registered in a ${room.capacity}-player room ` +
+      `(${room.joined}/${room.capacity}) — it starts when it fills.`;
+    button.textContent = "Leave room";
+    lobbyBannerAction = async () => {
+      try {
+        await api.leaveRoom(room.id);
+      } catch {
+        /* stale registration; refresh below clears it */
+      }
+      showLobby();
+    };
+  } else if (currentUser.active_match_id) {
+    text.textContent = "You have a tournament match in progress.";
+    button.textContent = "Rejoin match";
+    lobbyBannerAction = () => {
+      currentTournamentId = currentUser.active_tournament_id;
+      ws.send({ type: "subscribe_tournament", tid: currentTournamentId });
+      showScreen("match");
+      matchController.start(currentUser.active_match_id);
+    };
+  } else {
+    text.textContent = "Your tournament is running — waiting for your next round.";
+    button.textContent = "View bracket";
+    lobbyBannerAction = () => {
+      currentTournamentId = currentUser.active_tournament_id;
+      if (currentTournamentId) ws.send({ type: "subscribe_tournament", tid: currentTournamentId });
+      showScreen("bracket");
+    };
+  }
+}
+
 async function showLobby() {
   stopCountdown();
   showScreen("lobby");
   await refreshBalance();
+  renderLobbyBanner();
   try {
     const { rooms } = await api.lobby();
-    renderRooms(rooms);
+    renderRooms(rooms, currentUser?.current_room?.id);
   } catch (err) {
     console.error("failed to load lobby", err);
   }
@@ -83,6 +133,8 @@ function logout() {
 }
 
 async function main() {
+  matchController = new MatchController(() => currentUser?.id);
+
   initAuthScreen({ onLoggedIn });
   initLobby({
     onJoined: () => {
@@ -93,7 +145,9 @@ async function main() {
     },
   });
 
-  const matchController = new MatchController(() => currentUser?.id);
+  document.getElementById("lobby-banner-action").addEventListener("click", () => {
+    if (lobbyBannerAction) lobbyBannerAction();
+  });
 
   document.getElementById("nav-lobby").addEventListener("click", (e) => {
     e.preventDefault();
@@ -109,7 +163,7 @@ async function main() {
     if (document.getElementById("screen-lobby").classList.contains("active")) {
       try {
         const { rooms } = await api.lobby();
-        renderRooms(rooms);
+        renderRooms(rooms, currentUser?.current_room?.id);
       } catch {
         /* ignore */
       }
