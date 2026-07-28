@@ -7,7 +7,7 @@ dev:
 	cd server && .venv/bin/uvicorn app.main:app --reload
 
 web:
-	python3 -m http.server 5500
+	python3 web/serve.py 5500
 
 test:
 	cd server && .venv/bin/pytest
