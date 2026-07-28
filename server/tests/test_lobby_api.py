@@ -87,7 +87,9 @@ def test_filling_a_room_spawns_a_replacement(client):
     client.post(f"/rooms/{room_id}/join", headers=auth_headers(token_a))
     fill_resp = client.post(f"/rooms/{room_id}/join", headers=auth_headers(token_b))
     assert fill_resp.status_code == 200
-    assert fill_resp.json()["state"] == "FULL"
+    # the tournament manager (A7) advances the room past FULL to
+    # TOURNAMENT_RUNNING synchronously within this same request.
+    assert fill_resp.json()["state"] == "TOURNAMENT_RUNNING"
 
     open_size_2 = [r for r in client.get("/lobby").json()["rooms"] if r["capacity"] == 2]
     assert len(open_size_2) == 20  # still 20 open — one filled, one freshly spawned

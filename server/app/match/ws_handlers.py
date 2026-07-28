@@ -13,6 +13,7 @@ from app.engine import legal_moves
 from app.engine.models import WHITE
 from app.match import config, service
 from app.match.runtime import MatchRuntime, MatchRuntimeManager
+from app.tournament.orchestrator import handle_match_finished
 
 
 async def _send(app: FastAPI, user_id: str, message: dict) -> None:
@@ -76,6 +77,15 @@ async def handle_match_ready(app: FastAPI, user, mid: str | None) -> None:
 
         if match.status == service.RUNNING:
             state = service.state_from_match(match)
+            if runtime.dice is None:
+                # Fresh runtime with no in-memory turn state — either the very
+                # first ready ping right as the match started, or (SPEC §5.2
+                # crash recovery) a process restart, which never persists the
+                # in-flight dice roll. Re-roll for the current turn rather
+                # than handing back a "your_turn: true, legal_moves: []"
+                # dead end.
+                await _advance_turn(app, match, state)
+                return
             await _send(app, user.id, await _state_message(match, state, user.id, runtime))
             return
 
@@ -221,6 +231,7 @@ async def _finish_and_broadcast(app: FastAPI, match, winner_id: str, reason: str
             },
         )
     app.state.match_runtimes.pop(match.id)
+    await handle_match_finished(app, match)
 
 
 # -- turn timeout ------------------------------------------------------

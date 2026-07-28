@@ -69,3 +69,31 @@ class UserConnectionRegistry:
             await websocket.send_json(message)
         except Exception:
             pass
+
+
+class TournamentConnectionManager:
+    """Spectatable bracket channel (SPEC §5.2: "bracket state is broadcast
+    on the tournament WS channel after every match result")."""
+
+    def __init__(self) -> None:
+        self._subscribers: dict[str, set[WebSocket]] = {}
+
+    def subscribe(self, tournament_id: str, websocket: WebSocket) -> None:
+        self._subscribers.setdefault(tournament_id, set()).add(websocket)
+
+    def unsubscribe_all(self, websocket: WebSocket) -> None:
+        for subscribers in self._subscribers.values():
+            subscribers.discard(websocket)
+
+    async def broadcast(self, tournament_id: str, message: dict) -> None:
+        subscribers = self._subscribers.get(tournament_id)
+        if not subscribers:
+            return
+        dead: list[WebSocket] = []
+        for connection in subscribers:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                dead.append(connection)
+        for connection in dead:
+            subscribers.discard(connection)

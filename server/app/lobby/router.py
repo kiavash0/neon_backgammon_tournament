@@ -4,6 +4,7 @@ from app.auth.dependencies import get_current_user, get_storage
 from app.lobby import service
 from app.lobby.schemas import room_to_dict, room_update_message
 from app.storage.base import StorageBackend, User
+from app.tournament.orchestrator import start_tournament
 
 router = APIRouter()
 
@@ -34,6 +35,9 @@ async def join_room(
     await manager.broadcast(room_update_message(result.room))
     if result.replacement_room is not None:
         await manager.broadcast(room_update_message(result.replacement_room))
+
+    if result.room.state == service.FULL:
+        await start_tournament(request.app, result.room)
 
     return room_to_dict(result.room)
 

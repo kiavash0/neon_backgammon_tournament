@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.match.runtime import MatchRuntimeManager
 from app.storage.base import Match
 
 
@@ -347,3 +348,37 @@ def test_both_players_disconnected_ends_in_double_forfeit(monkeypatch):
         finished = app.state.storage.get_match(match.id)
         assert finished.status == "FINISHED"
         assert finished.winner_id in (white_id, black_id)
+
+
+def test_resume_after_process_restart_gets_playable_state(client):
+    """Regression test: a real server restart wipes MatchRuntime (dice live
+    only in memory), but match.game_state is persisted (SPEC §5.2 crash
+    recovery). A resuming player must get a real dice roll and non-empty
+    legal_moves, not a stale "your_turn: true, legal_moves: []" dead end."""
+    token_w = signup_and_login(client, "alice")
+    token_b = signup_and_login(client, "bob")
+    white_id, black_id = user_id(client, token_w), user_id(client, token_b)
+    match = create_pending_match(white_id, black_id)
+
+    with (
+        client.websocket_connect(f"/ws?token={token_w}") as ws_w,
+        client.websocket_connect(f"/ws?token={token_b}") as ws_b,
+    ):
+        ws_w.send_json({"type": "match_ready", "mid": match.id})
+        ws_b.send_json({"type": "match_ready", "mid": match.id})
+        start_w = ws_w.receive_json()
+        ws_b.receive_json()
+        drain_until_state_or_result(ws_w)
+        drain_until_state_or_result(ws_b)
+
+    mover_token = token_w if start_w["your_color"] == 1 else token_b
+
+    # simulate a process restart: storage (the sqlite file/connection)
+    # survives, but every in-memory runtime is gone.
+    app.state.match_runtimes = MatchRuntimeManager()
+
+    with client.websocket_connect(f"/ws?token={mover_token}") as ws_resumed:
+        ws_resumed.send_json({"type": "match_ready", "mid": match.id})
+        resumed = drain_until_state_or_result(ws_resumed)
+        assert resumed["your_turn"] is True
+        assert resumed["legal_moves"], "resumed turn must be playable, not a dead end"

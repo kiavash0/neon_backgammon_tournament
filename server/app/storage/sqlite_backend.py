@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS matches (
     player_black_id TEXT,
     status TEXT NOT NULL,
     winner_id TEXT,
-    game_state TEXT
+    game_state TEXT,
+    bracket_slot INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS game_moves (
@@ -233,6 +234,16 @@ class SqliteBackend(StorageBackend):
             ).fetchone()
         return _row_to_tournament(row) if row else None
 
+    def list_tournaments(self, *, status: str | None = None) -> list[Tournament]:
+        query = "SELECT * FROM tournaments WHERE 1=1"
+        params: list = []
+        if status is not None:
+            query += " AND status = ?"
+            params.append(status)
+        with self._lock:
+            rows = self._conn.execute(query, params).fetchall()
+        return [_row_to_tournament(r) for r in rows]
+
     def update_tournament(self, tournament: Tournament) -> Tournament:
         with self._lock:
             self._conn.execute(
@@ -256,7 +267,8 @@ class SqliteBackend(StorageBackend):
         with self._lock:
             self._conn.execute(
                 "INSERT INTO matches (id, tournament_id, round_number, player_white_id,"
-                " player_black_id, status, winner_id, game_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " player_black_id, status, winner_id, game_state, bracket_slot)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     match.id,
                     match.tournament_id,
@@ -266,6 +278,7 @@ class SqliteBackend(StorageBackend):
                     match.status,
                     match.winner_id,
                     json.dumps(match.game_state) if match.game_state is not None else None,
+                    match.bracket_slot,
                 ),
             )
             self._conn.commit()
@@ -463,4 +476,5 @@ def _row_to_match(row: sqlite3.Row) -> Match:
         status=row["status"],
         winner_id=row["winner_id"],
         game_state=json.loads(row["game_state"]) if row["game_state"] is not None else None,
+        bracket_slot=row["bracket_slot"],
     )

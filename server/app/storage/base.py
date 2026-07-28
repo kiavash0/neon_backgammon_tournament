@@ -58,6 +58,7 @@ class Match:
     status: str = "PENDING"  # PENDING | RUNNING | FINISHED | FORFEITED
     winner_id: str | None = None
     game_state: dict | None = None
+    bracket_slot: int = 0  # position within its round; deterministic next-round pairing
 
 
 @dataclass
@@ -138,6 +139,9 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def update_tournament(self, tournament: Tournament) -> Tournament: ...
+
+    @abstractmethod
+    def list_tournaments(self, *, status: str | None = None) -> list[Tournament]: ...
 
     # -- matches -------------------------------------------------------
     @abstractmethod

@@ -125,6 +125,14 @@ class H5Backend(StorageBackend):
             self._put("tournaments", tournament.id, asdict(tournament))
         return tournament
 
+    def list_tournaments(self, *, status: str | None = None) -> list[Tournament]:
+        with self._lock:
+            records = self._all("tournaments")
+        tournaments = [Tournament(**r) for r in records]
+        if status is not None:
+            tournaments = [t for t in tournaments if t.status == status]
+        return tournaments
+
     # -- matches -------------------------------------------------------
 
     def create_match(self, match: Match) -> Match:
