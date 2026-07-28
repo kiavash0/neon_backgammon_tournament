@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS users (
     dob TEXT NOT NULL,
     country TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    is_deleted INTEGER NOT NULL DEFAULT 0
+    is_deleted INTEGER NOT NULL DEFAULT 0,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TEXT
 );
 
 CREATE TABLE IF NOT EXISTS rooms (
@@ -110,7 +112,8 @@ class SqliteBackend(StorageBackend):
         with self._lock:
             self._conn.execute(
                 "INSERT INTO users (id, email, password_hash, display_name, dob, country,"
-                " created_at, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " created_at, is_deleted, failed_login_attempts, locked_until)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     user.id,
                     user.email,
@@ -120,6 +123,8 @@ class SqliteBackend(StorageBackend):
                     user.country,
                     user.created_at,
                     int(user.is_deleted),
+                    user.failed_login_attempts,
+                    user.locked_until,
                 ),
             )
             self._conn.commit()
@@ -139,7 +144,7 @@ class SqliteBackend(StorageBackend):
         with self._lock:
             self._conn.execute(
                 "UPDATE users SET email=?, password_hash=?, display_name=?, dob=?, country=?,"
-                " is_deleted=? WHERE id=?",
+                " is_deleted=?, failed_login_attempts=?, locked_until=? WHERE id=?",
                 (
                     user.email,
                     user.password_hash,
@@ -147,6 +152,8 @@ class SqliteBackend(StorageBackend):
                     user.dob,
                     user.country,
                     int(user.is_deleted),
+                    user.failed_login_attempts,
+                    user.locked_until,
                     user.id,
                 ),
             )
@@ -412,6 +419,8 @@ def _row_to_user(row: sqlite3.Row) -> User:
         country=row["country"],
         created_at=row["created_at"],
         is_deleted=bool(row["is_deleted"]),
+        failed_login_attempts=row["failed_login_attempts"],
+        locked_until=row["locked_until"],
     )
 
 

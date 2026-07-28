@@ -21,6 +21,8 @@ class User:
     country: str
     created_at: str
     is_deleted: bool = False
+    failed_login_attempts: int = 0
+    locked_until: str | None = None
 
 
 @dataclass

@@ -8,6 +8,9 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "h5py>=3.12",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.9",
+    "email-validator>=2.2",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +27,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]  # FastAPI's Depends() in defaults is the idiomatic DI pattern
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
