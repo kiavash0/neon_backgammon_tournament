@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Neon Backgammon Tournament</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">NEON&nbsp;BACKGAMMON</a>
+    <nav class="topnav" id="topnav" hidden>
+      <a href="#" id="nav-lobby">Lobby</a>
+      <a href="rules.html">Official Rules</a>
+      <span class="balance" id="balance-display">$0.00</span>
+      <a href="#" id="nav-logout">Log out</a>
+    </nav>
+  </header>
+
+  <main id="app">
+    <!-- AUTH -->
+    <section id="screen-auth" class="screen">
+      <div class="card auth-card">
+        <div class="tabs">
+          <button class="tab active" data-tab="login">Log in</button>
+          <button class="tab" data-tab="signup">Sign up</button>
+        </div>
+
+        <form id="form-login" class="tab-panel active">
+          <label>Email <input type="email" name="email" required /></label>
+          <label>Password <input type="password" name="password" required /></label>
+          <button type="submit" class="btn-primary">Log in</button>
+          <p class="form-error" id="login-error"></p>
+        </form>
+
+        <form id="form-signup" class="tab-panel">
+          <label>Email <input type="email" name="email" required /></label>
+          <label>Password <input type="password" name="password" minlength="8" required /></label>
+          <label>Display name <input type="text" name="display_name" maxlength="64" required /></label>
+          <label>Date of birth <input type="date" name="dob" required /></label>
+          <label>Country <input type="text" name="country" maxlength="2" placeholder="IE" required /></label>
+          <p class="hint">18+ only. Free entry, no purchase necessary — see Official Rules.</p>
+          <button type="submit" class="btn-primary">Create account</button>
+          <p class="form-error" id="signup-error"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- LOBBY -->
+    <section id="screen-lobby" class="screen">
+      <h1>Lobby</h1>
+      <p class="hint">Free entry. Winner takes the tournament's estimated ad-revenue prize pool.</p>
+      <div id="room-grid" class="room-grid"></div>
+    </section>
+
+    <!-- BRACKET -->
+    <section id="screen-bracket" class="screen">
+      <h1>Tournament</h1>
+      <div id="bracket-status" class="hint"></div>
+      <div id="bracket-view" class="bracket-view"></div>
+      <button id="bracket-back" class="btn-secondary">Back to lobby</button>
+    </section>
+
+    <!-- MATCH -->
+    <section id="screen-match" class="screen">
+      <div class="match-header">
+        <div id="match-status" class="hint">Waiting for opponent…</div>
+        <div id="match-timer" class="timer"></div>
+      </div>
+      <div id="board-root" class="board-root"></div>
+      <div class="match-controls">
+        <div id="dice-display" class="dice-display"></div>
+        <button id="btn-resign" class="btn-danger">Resign</button>
+      </div>
+      <div id="match-result" class="match-result" hidden></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Free-to-enter skill game. No purchase necessary. 18+. Demo build — prizes are virtual credit only.
+    <a href="rules.html">Official Rules</a>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

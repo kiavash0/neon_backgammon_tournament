@@ -85,9 +85,13 @@ def test_full_game_over_two_websocket_clients(client):
         assert {start_w["your_color"], start_b["your_color"]} == {1, -1}
 
         result = None
+        last_game_state = None
         for _ in range(1000):
             msg_w = drain_until_state_or_result(ws_w)
             msg_b = drain_until_state_or_result(ws_b)
+            for msg in (msg_w, msg_b):
+                if msg["type"] == "state":
+                    last_game_state = msg["game_state"]
             if msg_w["type"] == "match_result":
                 result = msg_w
                 break
@@ -95,6 +99,9 @@ def test_full_game_over_two_websocket_clients(client):
                 result = msg_b
                 break
 
+            if not msg_w["your_turn"] and not msg_b["your_turn"]:
+                # terminal state broadcast right before match_result; keep draining.
+                continue
             mover_msg, mover_ws = (msg_w, ws_w) if msg_w["your_turn"] else (msg_b, ws_b)
             options = mover_msg["legal_moves"]
             assert options, "server must never hand the client an empty choice"
@@ -103,6 +110,11 @@ def test_full_game_over_two_websocket_clients(client):
         assert result is not None, "game did not terminate within the safety cap"
         assert result["winner_user_id"] in (white_id, black_id)
         assert result["reason"] == "bear_off"
+
+        # Regression: clients must see the TRUE final board (15 checkers
+        # off for the winner), not freeze on the second-to-last state.
+        assert last_game_state is not None
+        assert 15 in (last_game_state["off_white"], last_game_state["off_black"])
 
         finished = app.state.storage.get_match(match.id)
         assert finished.status == "FINISHED"

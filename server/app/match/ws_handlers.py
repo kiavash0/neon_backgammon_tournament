@@ -136,7 +136,9 @@ async def _advance_turn(app: FastAPI, match, state) -> None:
             storage, match, state, (), runtime.move_seq_counter, runtime.roll_index
         )
         if winner_color is not None:
-            await _finish_and_broadcast(app, match, _winner_id(match, winner_color), "bear_off")
+            await _finish_and_broadcast(
+                app, match, _winner_id(match, winner_color), "bear_off", final_state=state
+            )
             return
         runtime.generation += 1
         await _advance_turn(app, match, state)
@@ -191,7 +193,9 @@ async def handle_move(app: FastAPI, user, mid: str | None, raw_seq: list) -> Non
         await _send(app, opponent, {"type": "opponent_move", "mid": mid, "move": raw_seq})
 
         if winner_color is not None:
-            await _finish_and_broadcast(app, match, _winner_id(match, winner_color), "bear_off")
+            await _finish_and_broadcast(
+                app, match, _winner_id(match, winner_color), "bear_off", final_state=new_state
+            )
             return
         await _advance_turn(app, match, new_state)
 
@@ -216,8 +220,26 @@ async def handle_resign(app: FastAPI, user, mid: str | None) -> None:
         await _finish_and_broadcast(app, match, opponent, "resign")
 
 
-async def _finish_and_broadcast(app: FastAPI, match, winner_id: str, reason: str) -> None:
+async def _finish_and_broadcast(
+    app: FastAPI, match, winner_id: str, reason: str, final_state=None
+) -> None:
     storage = app.state.storage
+    if final_state is not None:
+        # A bear-off win means the board changed on this very move; make sure
+        # clients render the true final position (e.g. 15 checkers off)
+        # instead of freezing on the second-to-last state.
+        for uid in (match.player_white_id, match.player_black_id):
+            await _send(
+                app,
+                uid,
+                {
+                    "type": "state",
+                    "mid": match.id,
+                    "game_state": final_state.to_dict(),
+                    "your_turn": False,
+                    "legal_moves": [],
+                },
+            )
     match = service.finish_match(storage, match, winner_id)
     for uid in (match.player_white_id, match.player_black_id):
         await _send(
@@ -283,7 +305,9 @@ async def _on_turn_timeout(app: FastAPI, match_id: str, generation: int) -> None
         )
 
         if winner_color is not None:
-            await _finish_and_broadcast(app, match, _winner_id(match, winner_color), "bear_off")
+            await _finish_and_broadcast(
+                app, match, _winner_id(match, winner_color), "bear_off", final_state=new_state
+            )
             return
 
         if runtime.consecutive_timeouts[mover_id] >= config.max_consecutive_timeouts():

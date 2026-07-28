@@ -58,6 +58,9 @@ def play_match(ws_a, ws_b, mid):
             return msg_a
         if msg_b["type"] == "match_result":
             return msg_b
+        if not msg_a["your_turn"] and not msg_b["your_turn"]:
+            # terminal state broadcast right before match_result; keep draining.
+            continue
         mover_ws, mover_msg = (ws_a, msg_a) if msg_a["your_turn"] else (ws_b, msg_b)
         mover_ws.send_json({"type": "move", "mid": mid, "seq": mover_msg["legal_moves"][0]})
 

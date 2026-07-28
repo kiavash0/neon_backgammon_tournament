@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Official Rules — Neon Backgammon Tournament</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">NEON&nbsp;BACKGAMMON</a>
+  </header>
+
+  <main id="app">
+    <div class="card">
+      <h1>Official Rules</h1>
+      <p class="hint">
+        Demo build (Phase A) — placeholder text. Final copy requires legal counsel review
+        before any public launch (SPEC §2.6, §14 B6).
+      </p>
+
+      <h2>Entry</h2>
+      <p>
+        Entry to Neon Backgammon Tournament is completely free. No purchase, payment, or
+        virtual-currency stake of any kind is required or accepted to register, join a
+        tournament room, or compete for a prize. Watching an advertisement is never a
+        condition of entry.
+      </p>
+
+      <h2>Eligibility</h2>
+      <p>
+        Players must be 18 years of age or older, attested at signup. This demo build does
+        not yet enforce a geo-eligibility allowlist/blocklist; production launch will
+        restrict entry to approved regions per SPEC §2.7, expanding only after legal review.
+      </p>
+
+      <h2>How winners are determined</h2>
+      <p>
+        Each tournament is single-elimination. Rosters are randomly seeded with a
+        cryptographically secure shuffle. Players are paired match by match; the loser of
+        each match is eliminated. The last remaining player is the tournament champion.
+        Backgammon moves, dice rolls, and match outcomes are determined entirely
+        server-side — the game engine is deterministic and auditable.
+      </p>
+
+      <h2>Prize calculation</h2>
+      <p>
+        The tournament's prize pool equals a configured payout rate (currently 50%) of the
+        estimated advertising revenue attributed to that tournament. In this demo build, ad
+        revenue is simulated (a fixed stub value per impression) rather than sourced from a
+        live ad network, so all prize amounts are virtual credit, not real currency. In a
+        production deployment, prize amounts are estimates until a monthly reconciliation
+        against actual network-reported revenue; a tournament with zero attributed ad
+        revenue pays a $0.00 prize.
+      </p>
+
+      <h2>Payout terms</h2>
+      <p>
+        This demo build credits winnings to an in-app ledger balance only — no withdrawal
+        mechanism exists yet. A production deployment will require reaching a minimum
+        payout threshold and completing identity verification before funds can be withdrawn
+        via a third-party payout provider.
+      </p>
+
+      <h2>Sponsor / operator identity</h2>
+      <p>Neon Backgammon Tournament — demo build. Operator identity to be finalized before public launch.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <a href="index.html">Back to Neon Backgammon Tournament</a>
+  </footer>
+</body>
+</html>
