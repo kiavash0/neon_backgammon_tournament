@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL,
     is_deleted INTEGER NOT NULL DEFAULT 0,
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TEXT
+    locked_until TEXT,
+    current_room_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS rooms (
@@ -112,8 +113,8 @@ class SqliteBackend(StorageBackend):
         with self._lock:
             self._conn.execute(
                 "INSERT INTO users (id, email, password_hash, display_name, dob, country,"
-                " created_at, is_deleted, failed_login_attempts, locked_until)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " created_at, is_deleted, failed_login_attempts, locked_until, current_room_id)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     user.id,
                     user.email,
@@ -125,6 +126,7 @@ class SqliteBackend(StorageBackend):
                     int(user.is_deleted),
                     user.failed_login_attempts,
                     user.locked_until,
+                    user.current_room_id,
                 ),
             )
             self._conn.commit()
@@ -144,7 +146,8 @@ class SqliteBackend(StorageBackend):
         with self._lock:
             self._conn.execute(
                 "UPDATE users SET email=?, password_hash=?, display_name=?, dob=?, country=?,"
-                " is_deleted=?, failed_login_attempts=?, locked_until=? WHERE id=?",
+                " is_deleted=?, failed_login_attempts=?, locked_until=?, current_room_id=?"
+                " WHERE id=?",
                 (
                     user.email,
                     user.password_hash,
@@ -154,6 +157,7 @@ class SqliteBackend(StorageBackend):
                     int(user.is_deleted),
                     user.failed_login_attempts,
                     user.locked_until,
+                    user.current_room_id,
                     user.id,
                 ),
             )
@@ -421,6 +425,7 @@ def _row_to_user(row: sqlite3.Row) -> User:
         is_deleted=bool(row["is_deleted"]),
         failed_login_attempts=row["failed_login_attempts"],
         locked_until=row["locked_until"],
+        current_room_id=row["current_room_id"],
     )
 
 

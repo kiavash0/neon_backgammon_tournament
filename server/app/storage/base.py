@@ -23,6 +23,7 @@ class User:
     is_deleted: bool = False
     failed_login_attempts: int = 0
     locked_until: str | None = None
+    current_room_id: str | None = None  # SPEC §5.1: at most one room/tournament at a time
 
 
 @dataclass

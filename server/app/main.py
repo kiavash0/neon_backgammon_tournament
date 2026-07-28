@@ -4,18 +4,28 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.auth.router import router as auth_router
+from app.lobby.router import router as lobby_router
+from app.lobby.service import ensure_pools
+from app.realtime.manager import LobbyConnectionManager
+from app.realtime.router import router as realtime_router
+from app.security.fraud_gate import assert_safe_to_boot
 from app.storage.factory import get_storage_backend
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    assert_safe_to_boot()
     app.state.storage = get_storage_backend()
+    app.state.lobby_manager = LobbyConnectionManager()
+    ensure_pools(app.state.storage)
     yield
     app.state.storage.close()
 
 
 app = FastAPI(title="Neon Backgammon Tournament", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(lobby_router)
+app.include_router(realtime_router)
 
 
 @app.get("/health")
