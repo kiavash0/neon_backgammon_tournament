@@ -8,12 +8,42 @@ import { MatchController } from "./match.js";
 const screens = ["auth", "lobby", "bracket", "match"];
 let currentUser = null;
 let currentTournamentId = null;
+let countdownInterval = null;
 
 function showScreen(name) {
   for (const s of screens) {
     document.getElementById(`screen-${s}`).classList.toggle("active", s === name);
   }
   document.getElementById("topnav").hidden = name === "auth";
+}
+
+function startCountdown(seconds) {
+  stopCountdown();
+  const container = document.getElementById("bracket-countdown");
+  const numberEl = document.getElementById("countdown-number");
+  const labelEl = document.getElementById("countdown-label");
+  container.hidden = false;
+  labelEl.textContent = "Get ready…";
+
+  let remaining = Math.max(0, Math.ceil(seconds));
+  numberEl.textContent = remaining;
+  countdownInterval = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      numberEl.textContent = "0";
+      labelEl.textContent = "Starting your match…";
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      return;
+    }
+    numberEl.textContent = remaining;
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = null;
+  document.getElementById("bracket-countdown").hidden = true;
 }
 
 async function refreshBalance() {
@@ -27,6 +57,7 @@ async function refreshBalance() {
 }
 
 async function showLobby() {
+  stopCountdown();
   showScreen("lobby");
   await refreshBalance();
   try {
@@ -44,6 +75,7 @@ async function onLoggedIn() {
 }
 
 function logout() {
+  stopCountdown();
   clearTokens();
   ws.close();
   currentUser = null;
@@ -87,17 +119,18 @@ async function main() {
   ws.on("tournament_start", async (msg) => {
     currentTournamentId = msg.tid;
     showScreen("bracket");
-    document.getElementById("bracket-status").textContent =
-      `Tournament starting — ${msg.capacity} players. Get ready!`;
+    document.getElementById("bracket-status").textContent = `${msg.capacity}-player tournament`;
+    startCountdown(msg.get_ready_seconds ?? 0);
     ws.send({ type: "subscribe_tournament", tid: msg.tid });
   });
 
   ws.on("bracket_update", (msg) => {
     if (msg.tid !== currentTournamentId) return;
-    renderBracket(msg.tid, msg.bracket, msg.status);
+    renderBracket(msg.tid, msg.bracket);
   });
 
   ws.on("round_start", (msg) => {
+    stopCountdown();
     showScreen("match");
     matchController.start(msg.mid);
   });
@@ -111,6 +144,7 @@ async function main() {
   });
 
   ws.on("tournament_result", (msg) => {
+    stopCountdown();
     refreshBalance();
     const el = document.getElementById("bracket-status");
     if (el) {
@@ -121,7 +155,10 @@ async function main() {
     }
   });
 
-  ws.on("error", (msg) => console.warn("server error:", msg.code, msg.msg));
+  ws.on("error", (msg) => {
+    console.warn("server error:", msg.code, msg.msg);
+    matchController.clearSubmitting();
+  });
 
   if (isLoggedIn()) {
     await onLoggedIn();

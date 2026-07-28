@@ -4,10 +4,8 @@ function short(id) {
   return id ? `Player ${id.slice(0, 6)}` : "TBD";
 }
 
-export async function renderBracket(tid, bracket, status) {
+export async function renderBracket(tid, bracket) {
   const container = document.getElementById("bracket-view");
-  const statusEl = document.getElementById("bracket-status");
-  statusEl.textContent = `Status: ${status}`;
   container.innerHTML = "";
 
   const rounds = Object.keys(bracket.rounds || {})

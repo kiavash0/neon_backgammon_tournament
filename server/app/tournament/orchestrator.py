@@ -35,7 +35,14 @@ async def start_tournament(app: FastAPI, room: Room) -> Tournament:
 
     for uid in room.player_ids:
         await _send(
-            app, uid, {"type": "tournament_start", "tid": tournament.id, "capacity": room.capacity}
+            app,
+            uid,
+            {
+                "type": "tournament_start",
+                "tid": tournament.id,
+                "capacity": room.capacity,
+                "get_ready_seconds": config.get_ready_seconds(),
+            },
         )
     await _broadcast_bracket(app, tournament)
 

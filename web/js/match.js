@@ -32,12 +32,14 @@ export class MatchController {
 
   handleDice(msg) {
     if (msg.mid !== this.mid) return;
+    this._setSubmitting(false);
     const el = document.getElementById("dice-display");
     el.innerHTML = `<div class="die">${msg.d1}</div><div class="die">${msg.d2}</div>`;
   }
 
   handleState(msg) {
     if (msg.mid !== this.mid) return;
+    this._setSubmitting(false);
     this.board.render(msg.game_state, msg.legal_moves, this.yourColor, msg.your_turn);
     document.getElementById("match-status").textContent = msg.your_turn
       ? "Your turn — click a checker, then a highlighted point."
@@ -47,6 +49,7 @@ export class MatchController {
 
   handleMatchResult(msg) {
     if (msg.mid !== this.mid) return;
+    this._setSubmitting(false);
     this._clearTimer();
     const resultEl = document.getElementById("match-result");
     resultEl.hidden = false;
@@ -58,7 +61,19 @@ export class MatchController {
   }
 
   _submitMove(seq) {
+    this._setSubmitting(true);
     ws.send({ type: "move", mid: this.mid, seq });
+  }
+
+  clearSubmitting() {
+    this._setSubmitting(false);
+  }
+
+  _setSubmitting(isSubmitting) {
+    document.getElementById("board-root").classList.toggle("submitting", isSubmitting);
+    if (isSubmitting) {
+      document.getElementById("match-status").textContent = "Sending move…";
+    }
   }
 
   _resign() {

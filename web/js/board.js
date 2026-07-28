@@ -30,7 +30,8 @@ export class Board {
   constructor(rootEl, { onMoveChosen }) {
     this.rootEl = rootEl;
     this.onMoveChosen = onMoveChosen;
-    this.state = null;
+    this.state = null; // last authoritative state from the server
+    this.displayState = null; // state + locally-applied picks this turn, for instant feedback
     this.legalMoves = [];
     this.yourColor = 1;
     this.yourTurn = false;
@@ -40,12 +41,44 @@ export class Board {
 
   render(gameState, legalMoves, yourColor, yourTurn) {
     this.state = gameState;
+    this.displayState = gameState ? JSON.parse(JSON.stringify(gameState)) : null;
     this.legalMoves = legalMoves || [];
     this.yourColor = yourColor;
     this.yourTurn = yourTurn;
     this.prefix = [];
     this.selectedFrom = null;
     this._draw();
+  }
+
+  // Mirrors the server engine's single-atomic-move application (SPEC §4.5
+  // apply_move) just enough to update the board instantly, before the
+  // server round-trip confirms the whole sequence.
+  _applyLocal(move) {
+    const [frm, to] = move;
+    const color = this.yourColor;
+    const s = this.displayState;
+    const points = s.points.slice();
+
+    if (frm === "bar") {
+      if (color === 1) s.bar_white -= 1;
+      else s.bar_black -= 1;
+    } else {
+      points[frm] -= color;
+    }
+
+    if (to === "off") {
+      if (color === 1) s.off_white += 1;
+      else s.off_black += 1;
+    } else {
+      if (points[to] * color < 0) {
+        if (color === 1) s.bar_black += 1;
+        else s.bar_white += 1;
+        points[to] = 0;
+      }
+      points[to] += color;
+    }
+
+    s.points = points;
   }
 
   _candidates() {
@@ -78,6 +111,7 @@ export class Board {
     if (!match) return;
     this.prefix.push(match);
     this.selectedFrom = null;
+    this._applyLocal(match); // move the checker on screen right now, don't wait for the server
 
     const remaining = this._candidates();
     const done = remaining.every((seq) => seq.length === this.prefix.length);
@@ -85,7 +119,6 @@ export class Board {
       const chosen = this.prefix;
       this.prefix = [];
       this.onMoveChosen(chosen);
-      return;
     }
     this._draw();
   }
@@ -104,7 +137,7 @@ export class Board {
       })
     );
 
-    if (!this.state) {
+    if (!this.displayState) {
       this.rootEl.appendChild(svg);
       return;
     }
@@ -139,7 +172,7 @@ export class Board {
     const fill = (side === "top" ? TOP_ROW.indexOf(idx) : BOTTOM_ROW.indexOf(idx)) % 2 === 0 ? "#1c2333" : "#241a33";
     g.appendChild(svgEl("polygon", { points, fill, class: "point-tri" }));
 
-    const count = this.state.points[idx];
+    const count = this.displayState.points[idx];
     if (count !== 0) {
       const color = count > 0 ? "white" : "black";
       const n = Math.abs(count);
@@ -192,13 +225,26 @@ export class Board {
     const barSelectable = fromTargets.has("bar");
     const g = svgEl("g", { class: `point${barSelectable ? " selectable" : ""}`, "data-point": "bar" });
 
-    if (this.state.bar_white > 0) {
-      for (let i = 0; i < this.state.bar_white; i++) {
+    // Always-present, invisible hit area: without this, an empty bar (no
+    // checkers rendered yet) has no shape for the click listener to land
+    // on, and the background bar rect underneath intercepts the click.
+    g.appendChild(
+      svgEl("rect", {
+        x: x - BAR_W / 2,
+        y: BOARD_TOP,
+        width: BAR_W,
+        height: BOARD_BOTTOM - BOARD_TOP,
+        fill: "transparent",
+      })
+    );
+
+    if (this.displayState.bar_white > 0) {
+      for (let i = 0; i < this.displayState.bar_white; i++) {
         g.appendChild(svgEl("circle", { cx: x, cy: HEIGHT / 2 - 30 - i * 34, r: CHECKER_R, class: "checker white" }));
       }
     }
-    if (this.state.bar_black > 0) {
-      for (let i = 0; i < this.state.bar_black; i++) {
+    if (this.displayState.bar_black > 0) {
+      for (let i = 0; i < this.displayState.bar_black; i++) {
         g.appendChild(svgEl("circle", { cx: x, cy: HEIGHT / 2 + 30 + i * 34, r: CHECKER_R, class: "checker black" }));
       }
     }
@@ -220,7 +266,7 @@ export class Board {
       "font-size": 14,
       "font-weight": 700,
     });
-    whiteLabel.textContent = this.state.off_white;
+    whiteLabel.textContent = this.displayState.off_white;
     const blackLabel = svgEl("text", {
       x: OFF_X + 10,
       y: BOARD_BOTTOM - 12,
@@ -229,7 +275,7 @@ export class Board {
       "font-size": 14,
       "font-weight": 700,
     });
-    blackLabel.textContent = this.state.off_black;
+    blackLabel.textContent = this.displayState.off_black;
     g.appendChild(whiteLabel);
     g.appendChild(blackLabel);
     g.addEventListener("click", () => this._onPointClick("off"));
