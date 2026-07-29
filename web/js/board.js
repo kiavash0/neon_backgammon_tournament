@@ -13,8 +13,11 @@ const OFF_X = 792;
 // Standard backgammon layout matching the engine's point numbering (SPEC §4.1):
 // index i == point (i+1). White home = points 1-6 (index 0-5), bears off toward
 // index -1; Black home = points 19-24 (index 18-23), bears off toward index 24.
-const TOP_ROW = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]; // indices, left->right
-const BOTTOM_ROW = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]; // indices, left->right
+// This is White's-eye-view canonical layout; Black's view swaps which row is
+// drawn on top/bottom (see _rows()) so each player always sees their own
+// home in the bottom-right, matching standard backgammon convention.
+const WHITE_VIEW_TOP_ROW = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]; // indices, left->right
+const WHITE_VIEW_BOTTOM_ROW = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]; // indices, left->right
 
 function slotX(col) {
   return col < 6 ? BOARD_LEFT + col * COL_W : BOARD_LEFT + 6 * COL_W + BAR_W + (col - 6) * COL_W;
@@ -128,6 +131,18 @@ export class Board {
     this._draw();
   }
 
+  // Each player always sees their own home in the bottom-right (standard
+  // backgammon convention) — Black's view swaps which canonical row is
+  // drawn on top vs. bottom (a row swap, not a left-right mirror: that's
+  // what keeps each player's own "start top-right, home bottom-right"
+  // travel direction consistent for both colors).
+  _rows() {
+    if (this.yourColor === -1) {
+      return { top: WHITE_VIEW_BOTTOM_ROW, bottom: WHITE_VIEW_TOP_ROW };
+    }
+    return { top: WHITE_VIEW_TOP_ROW, bottom: WHITE_VIEW_BOTTOM_ROW };
+  }
+
   _draw() {
     this.rootEl.innerHTML = "";
     const svg = svgEl("svg", { viewBox: `0 0 ${WIDTH} ${HEIGHT}`, width: "100%" });
@@ -152,8 +167,9 @@ export class Board {
     const toTargets = interactive && this.selectedFrom !== null ? this._toTargetsFor(this.selectedFrom) : [];
     const toIndexSet = new Set(toTargets.map((mv) => mv[1]));
 
-    TOP_ROW.forEach((idx, col) => this._drawPoint(svg, idx, col, "top", fromTargets, toIndexSet));
-    BOTTOM_ROW.forEach((idx, col) => this._drawPoint(svg, idx, col, "bottom", fromTargets, toIndexSet));
+    const { top, bottom } = this._rows();
+    top.forEach((idx, col) => this._drawPoint(svg, idx, col, "top", fromTargets, toIndexSet));
+    bottom.forEach((idx, col) => this._drawPoint(svg, idx, col, "bottom", fromTargets, toIndexSet));
 
     this._drawBar(svg, fromTargets);
     this._drawOff(svg, toIndexSet);
@@ -174,7 +190,7 @@ export class Board {
       side === "top"
         ? `${x},${BOARD_TOP} ${x + COL_W},${BOARD_TOP} ${x + COL_W / 2},${BOARD_TOP + TRI_H}`
         : `${x},${BOARD_BOTTOM} ${x + COL_W},${BOARD_BOTTOM} ${x + COL_W / 2},${BOARD_BOTTOM - TRI_H}`;
-    const fill = (side === "top" ? TOP_ROW.indexOf(idx) : BOTTOM_ROW.indexOf(idx)) % 2 === 0 ? "#1c2333" : "#241a33";
+    const fill = col % 2 === 0 ? "#1c2333" : "#241a33";
     g.appendChild(svgEl("polygon", { points, fill, class: "point-tri" }));
 
     const count = this.displayState.points[idx];
@@ -263,9 +279,12 @@ export class Board {
     g.appendChild(
       svgEl("rect", { x: OFF_X, y: BOARD_TOP, width: 20, height: BOARD_BOTTOM - BOARD_TOP, fill: "#161624", rx: 6 })
     );
+    // Match the point-grid flip: each player's own borne-off count sits
+    // near their own (now-relocated) home row.
+    const whiteAtTop = this.yourColor !== -1;
     const whiteLabel = svgEl("text", {
       x: OFF_X + 10,
-      y: BOARD_TOP + 24,
+      y: whiteAtTop ? BOARD_TOP + 24 : BOARD_BOTTOM - 12,
       "text-anchor": "middle",
       fill: "#f4f4ff",
       "font-size": 14,
@@ -274,7 +293,7 @@ export class Board {
     whiteLabel.textContent = this.displayState.off_white;
     const blackLabel = svgEl("text", {
       x: OFF_X + 10,
-      y: BOARD_BOTTOM - 12,
+      y: whiteAtTop ? BOARD_BOTTOM - 12 : BOARD_TOP + 24,
       "text-anchor": "middle",
       fill: "#f4f4ff",
       "font-size": 14,
