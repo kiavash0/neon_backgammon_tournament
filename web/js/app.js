@@ -139,9 +139,14 @@ async function main() {
   initLobby({
     onJoined: () => {
       // If the room just filled, the server-pushed `tournament_start` WS
-      // message (already wired below) will switch screens on its own.
-      // Otherwise just refresh so the joined room's occupancy updates.
-      showLobby();
+      // message (already wired below) switches screens on its own — and
+      // may well have already fired by the time this join POST resolves.
+      // Calling showLobby() unconditionally would race it and stomp the
+      // bracket screen right back to the lobby for whoever's own click
+      // was the one that filled the room. Only refresh if we're still here.
+      if (document.getElementById("screen-lobby").classList.contains("active")) {
+        showLobby();
+      }
     },
   });
 
