@@ -33,7 +33,14 @@ function findAllByPrefix(root, prefix) {
 const CHECKER_STACK_FIRST = 0.028;
 const CHECKER_STACK_STEP = 0.037;
 const CHECKER_HALF_HEIGHT = 0.0045;
-const MAX_STACKED = 5;
+// A point/bar visually fits LAYER_SIZE checkers in one row before the next
+// checker piles on top (a new vertical layer), same as a real board — not
+// an arbitrary display cutoff. Only beyond MAX_LAYERS worth do we fall back
+// to a "+N" label, purely so a 15-high stack doesn't run off the board.
+const LAYER_SIZE = 5;
+const MAX_LAYERS = 3;
+const MAX_STACKED = LAYER_SIZE * MAX_LAYERS;
+const CHECKER_LAYER_HEIGHT = CHECKER_HALF_HEIGHT * 2 + 0.001;
 
 export class Board3D {
   constructor(rootEl, { onMoveChosen }) {
@@ -147,6 +154,11 @@ export class Board3D {
     const barNode = findByName(this.boardGroup, "bar");
     if (barNode) {
       barNode.getWorldPosition(this.barWorldPos);
+      // Hit checkers must sit visibly ON TOP of the bar's raised surface,
+      // not at its center pivot — that had them partially embedded in the
+      // bar geometry, effectively invisible. Measure the real top surface
+      // instead of guessing an offset, so it's correct on any board theme.
+      this.barTopY = new THREE.Box3().setFromObject(barNode).max.y;
       if (barNode.material) {
         barNode.material = barNode.material.clone();
         barNode.userData.baseEmissive = (barNode.material.emissive || new THREE.Color(0, 0, 0)).clone();
@@ -443,19 +455,25 @@ export class Board3D {
       const pos = this.pointWorldPos.get(pointNum);
       if (!pos) continue;
       const color = count > 0 ? "light" : "dark";
-      const n = Math.min(Math.abs(count), MAX_STACKED);
+      const total = Math.abs(count);
+      const n = Math.min(total, MAX_STACKED);
       const dir = pos.z >= 0 ? -1 : 1; // stack inward, toward board center
       for (let i = 0; i < n; i++) {
+        const layer = Math.floor(i / LAYER_SIZE);
+        const posInLayer = i % LAYER_SIZE;
         const mesh = this.checkerTemplates[color].clone();
-        const z = pos.z + dir * (CHECKER_STACK_FIRST + i * CHECKER_STACK_STEP);
-        mesh.position.set(pos.x, pos.y + CHECKER_HALF_HEIGHT, z);
+        const z = pos.z + dir * (CHECKER_STACK_FIRST + posInLayer * CHECKER_STACK_STEP);
+        const y = pos.y + CHECKER_HALF_HEIGHT + layer * CHECKER_LAYER_HEIGHT;
+        mesh.position.set(pos.x, y, z);
         mesh.userData.pointIndex = idx;
         this.checkerGroup.add(mesh);
       }
-      if (Math.abs(count) > MAX_STACKED) {
-        const label = this._makeLabelSprite(`+${Math.abs(count) - MAX_STACKED}`);
-        const z = pos.z + dir * (CHECKER_STACK_FIRST + (MAX_STACKED - 1) * CHECKER_STACK_STEP);
-        label.position.set(pos.x, pos.y + 0.02, z);
+      if (total > MAX_STACKED) {
+        const topLayer = Math.floor((MAX_STACKED - 1) / LAYER_SIZE);
+        const label = this._makeLabelSprite(`+${total - MAX_STACKED}`);
+        const z = pos.z + dir * (CHECKER_STACK_FIRST + (LAYER_SIZE - 1) * CHECKER_STACK_STEP);
+        const y = pos.y + CHECKER_HALF_HEIGHT + (topLayer + 1) * CHECKER_LAYER_HEIGHT + 0.012;
+        label.position.set(pos.x, y, z);
         this.checkerGroup.add(label);
       }
     }
@@ -467,15 +485,29 @@ export class Board3D {
 
   _drawBarCheckers(colorKey, count, dirSign) {
     const templateKey = colorKey === "white" ? "light" : "dark";
-    for (let i = 0; i < count; i++) {
+    const total = Math.min(count, MAX_STACKED);
+    const barTop = this.barTopY ?? this.barWorldPos.y + CHECKER_HALF_HEIGHT;
+    for (let i = 0; i < total; i++) {
+      const layer = Math.floor(i / LAYER_SIZE);
+      const posInLayer = i % LAYER_SIZE;
       const mesh = this.checkerTemplates[templateKey].clone();
       mesh.position.set(
         this.barWorldPos.x,
-        this.barWorldPos.y + CHECKER_HALF_HEIGHT,
-        dirSign * (0.03 + i * CHECKER_STACK_STEP)
+        barTop + CHECKER_HALF_HEIGHT + layer * CHECKER_LAYER_HEIGHT,
+        dirSign * (0.03 + posInLayer * CHECKER_STACK_STEP)
       );
       mesh.userData.isBar = true;
       this.checkerGroup.add(mesh);
+    }
+    if (count > MAX_STACKED) {
+      const topLayer = Math.floor((MAX_STACKED - 1) / LAYER_SIZE);
+      const label = this._makeLabelSprite(`+${count - MAX_STACKED}`);
+      label.position.set(
+        this.barWorldPos.x,
+        barTop + CHECKER_HALF_HEIGHT + (topLayer + 1) * CHECKER_LAYER_HEIGHT + 0.012,
+        dirSign * (0.03 + (LAYER_SIZE - 1) * CHECKER_STACK_STEP)
+      );
+      this.checkerGroup.add(label);
     }
   }
 
