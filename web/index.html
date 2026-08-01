@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Neon Backgammon Tournament</title>
   <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -54,6 +62,24 @@
         <span id="lobby-banner-text"></span>
         <button id="lobby-banner-action" class="btn-secondary"></button>
       </div>
+
+      <div class="card theme-picker">
+        <h2>Table settings</h2>
+        <p class="hint">Your own choice — only affects how the board looks on your screen.</p>
+        <div class="theme-row">
+          <label>Board
+            <select id="theme-board"></select>
+          </label>
+          <label>Checkers
+            <select id="theme-checkers"></select>
+          </label>
+          <label>Dice
+            <select id="theme-dice"></select>
+          </label>
+        </div>
+        <div id="theme-preview" class="theme-preview"></div>
+      </div>
+
       <div id="room-grid" class="room-grid"></div>
     </section>
 

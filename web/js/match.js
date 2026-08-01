@@ -1,25 +1,45 @@
-import { Board } from "./board.js";
+import { Board3D } from "./board3d.js";
 import { ws } from "./ws.js";
+import { boardUrl, checkersUrl, diceCupUrl, diceUrl, getPrefs, loadManifest } from "./theme.js";
 
 export class MatchController {
   constructor(getUserId) {
     this.getUserId = getUserId;
     this.mid = null;
     this.yourColor = null;
-    this.board = new Board(document.getElementById("board-root"), {
+    this.board = new Board3D(document.getElementById("board-root"), {
       onMoveChosen: (seq, done) => this._submitMove(seq, done),
     });
     this.timerInterval = null;
+    this._themeReady = this._loadTheme();
     document.getElementById("btn-resign").addEventListener("click", () => this._resign());
   }
 
-  start(mid) {
+  async _loadTheme() {
+    const m = await loadManifest();
+    const prefs = getPrefs(m);
+    await this.board.setTheme({
+      boardUrl: boardUrl(m, prefs.board),
+      checkersUrl: checkersUrl(m, prefs.checkers),
+      diceUrl: diceUrl(m, prefs.dice),
+      diceCupUrl: diceCupUrl(m),
+    });
+  }
+
+  // Called when the player changes their table settings in the lobby.
+  reloadTheme() {
+    this._themeReady = this._loadTheme();
+    return this._themeReady;
+  }
+
+  async start(mid) {
     this.mid = mid;
     this.yourColor = null;
     document.getElementById("match-result").hidden = true;
     document.getElementById("match-status").textContent = "Waiting for opponent…";
     document.getElementById("dice-display").innerHTML = "";
     this._clearTimer();
+    await this._themeReady;
     this.board.render(null, [], null, false);
     ws.send({ type: "match_ready", mid });
   }
@@ -35,9 +55,11 @@ export class MatchController {
     this._setSubmitting(false);
     const el = document.getElementById("dice-display");
     // Doubles grant four moves (SPEC §4.2) — show four dice so the move
-    // count is obvious at a glance.
+    // count is obvious at a glance. Kept as a reliable text readout
+    // alongside the 3D dice-cup animation (SPEC intent: "value shown").
     const dice = msg.d1 === msg.d2 ? [msg.d1, msg.d1, msg.d1, msg.d1] : [msg.d1, msg.d2];
     el.innerHTML = dice.map((d) => `<div class="die">${d}</div>`).join("");
+    this.board.playDiceRoll(msg.d1, msg.d2);
   }
 
   handleOpponentMove(msg) {

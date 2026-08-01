@@ -4,6 +4,17 @@ import { initAuthScreen } from "./auth.js";
 import { initLobby, renderRooms } from "./lobby.js";
 import { renderBracket } from "./bracket.js";
 import { MatchController } from "./match.js";
+import { Board3D } from "./board3d.js";
+import {
+  boardUrl,
+  checkersUrl,
+  diceCupUrl,
+  diceUrl,
+  getPrefs,
+  populateThemeSelectors,
+  setPrefs,
+  STARTING_STATE,
+} from "./theme.js";
 
 const screens = ["auth", "lobby", "bracket", "match"];
 let currentUser = null;
@@ -132,8 +143,47 @@ function logout() {
   showScreen("auth");
 }
 
+let themeManifest = null;
+let themePreviewBoard = null;
+
+async function initThemePicker() {
+  const { manifest } = await populateThemeSelectors();
+  themeManifest = manifest;
+
+  themePreviewBoard = new Board3D(document.getElementById("theme-preview"), {
+    onMoveChosen: () => {}, // decorative — never interactive
+  });
+
+  const applyPreview = async () => {
+    const current = getPrefs(themeManifest);
+    await themePreviewBoard.setTheme({
+      boardUrl: boardUrl(themeManifest, current.board),
+      checkersUrl: checkersUrl(themeManifest, current.checkers),
+      diceUrl: diceUrl(themeManifest, current.dice),
+      diceCupUrl: diceCupUrl(themeManifest),
+    });
+    themePreviewBoard.render(structuredClone(STARTING_STATE), [], 1, false);
+  };
+
+  const boardSel = document.getElementById("theme-board");
+  const checkersSel = document.getElementById("theme-checkers");
+  const diceSel = document.getElementById("theme-dice");
+
+  const onChange = async () => {
+    setPrefs({ board: boardSel.value, checkers: checkersSel.value, dice: diceSel.value });
+    await applyPreview();
+    if (matchController) await matchController.reloadTheme();
+  };
+  boardSel.addEventListener("change", onChange);
+  checkersSel.addEventListener("change", onChange);
+  diceSel.addEventListener("change", onChange);
+
+  await applyPreview();
+}
+
 async function main() {
   matchController = new MatchController(() => currentUser?.id);
+  initThemePicker().catch((err) => console.error("theme picker failed to load", err));
 
   initAuthScreen({ onLoggedIn });
   initLobby({
