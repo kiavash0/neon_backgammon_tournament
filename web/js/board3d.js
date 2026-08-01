@@ -49,6 +49,21 @@ const CHECKER_LAYER_HEIGHT = CHECKER_HALF_HEIGHT * 2 + 0.001;
 const DICE_LAND_X = 0.15;
 const DICE_LAND_Z = 0.13;
 
+// Which LOCAL axis of the die_1 rigid body (cube + baked pips) each rolled
+// value sits on — decoded directly from the asset's actual pip node
+// positions (grouped by face-normal axis, then pip count per group), not
+// guessed. Consistent across all four dice color themes. Real dice always
+// have opposite faces summing to 7 (1<->6, 2<->5, 3<->4), confirmed here.
+const DIE_FACE_LOCAL_AXIS = {
+  1: new THREE.Vector3(0, 1, 0),
+  6: new THREE.Vector3(0, -1, 0),
+  3: new THREE.Vector3(0, 0, 1),
+  4: new THREE.Vector3(0, 0, -1),
+  2: new THREE.Vector3(1, 0, 0),
+  5: new THREE.Vector3(-1, 0, 0),
+};
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
 export class Board3D {
   constructor(rootEl, { onMoveChosen }) {
     this.rootEl = rootEl;
@@ -185,8 +200,18 @@ export class Board3D {
     this._makeDoubleSided(this.checkerTemplates.light);
     this._makeDoubleSided(this.checkerTemplates.dark);
 
-    const dieSrc = findByName(diceGltf.scene, "die_1_cube") || findByName(diceGltf.scene, "die_1");
+    // The asset bakes real pips onto all 6 faces of the cube (like a
+    // physical die), as siblings under "die_1" — cube + all pip meshes,
+    // not one geometry per rolled value. Clone that whole rigid group and
+    // zero its own transform (the source node's matrix is just some
+    // arbitrary static "resting pose" for the asset preview) so it's a
+    // clean body in local space; DIE_FACE_LOCAL_AXIS below then rotates
+    // whichever face should show the rolled value to point up.
+    const dieSrc = findByName(diceGltf.scene, "die_1");
     this.dieTemplate = dieSrc.clone();
+    this.dieTemplate.position.set(0, 0, 0);
+    this.dieTemplate.quaternion.identity();
+    this.dieTemplate.scale.set(1, 1, 1);
     this._makeDoubleSided(this.dieTemplate);
 
     if (this.cupGroup) this.worldGroup.remove(this.cupGroup);
@@ -633,10 +658,21 @@ export class Board3D {
     const dieB = this._makeDieMesh(d2, 0.02);
     this.diceGroup.add(dieA, dieB);
 
-    await this._animate(300, (t) => {
+    // Tumble from a random start orientation into the correct resting face
+    // (already computed as each die's userData.targetQuaternion) rather
+    // than popping in already-settled — reads as an actual roll landing.
+    const dieAModel = dieA.children[0];
+    const dieBModel = dieB.children[0];
+    const startA = dieAModel.quaternion.clone();
+    const startB = dieBModel.quaternion.clone();
+
+    await this._animate(450, (t) => {
       const bounce = Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t) * 0.03;
       dieA.position.y = 0.04 + bounce;
       dieB.position.y = 0.04 + bounce;
+      const settle = Math.min(1, t * 1.6); // finish rotating slightly before the bounce ends
+      dieAModel.quaternion.slerpQuaternions(startA, dieAModel.userData.targetQuaternion, settle);
+      dieBModel.quaternion.slerpQuaternions(startB, dieBModel.userData.targetQuaternion, settle);
     });
 
     this._animating = false;
@@ -644,13 +680,28 @@ export class Board3D {
 
   _makeDieMesh(value, xOffset) {
     const group = new THREE.Group();
-    const cube = this.dieTemplate.clone();
-    cube.scale.setScalar(1.4);
-    group.add(cube);
-    const label = this._makeLabelSprite(String(value));
-    label.scale.set(0.025, 0.025, 1);
-    label.position.set(0, 0.02, 0);
-    group.add(label);
+    const die = this.dieTemplate.clone();
+    die.scale.setScalar(1.8);
+
+    // Rotate the face that carries this value's real pips to point up, per
+    // DIE_FACE_LOCAL_AXIS (decoded from the asset itself, not guessed) —
+    // plus a random spin around the vertical axis purely for visual
+    // variety, which doesn't change which face is up.
+    const alignUp = new THREE.Quaternion().setFromUnitVectors(DIE_FACE_LOCAL_AXIS[value], WORLD_UP);
+    const spin = new THREE.Quaternion().setFromAxisAngle(WORLD_UP, Math.random() * Math.PI * 2);
+    const target = spin.clone().multiply(alignUp);
+    die.userData.targetQuaternion = target;
+
+    // Starts at a random tumble orientation; playDiceRoll slerps it to
+    // `target` over the landing animation instead of popping in pre-settled.
+    die.quaternion.set(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+
+    group.add(die);
     // fixed landing spot (see playDiceRoll); worldGroup mirror handles per-viewer side
     group.position.set(DICE_LAND_X + xOffset, 0.04, DICE_LAND_Z);
     return group;
