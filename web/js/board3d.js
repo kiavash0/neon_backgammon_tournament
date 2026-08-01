@@ -42,6 +42,13 @@ const MAX_LAYERS = 3;
 const MAX_STACKED = LAYER_SIZE * MAX_LAYERS;
 const CHECKER_LAYER_HEIGHT = CHECKER_HALF_HEIGHT * 2 + 0.001;
 
+// Where thrown dice land: the mover's own home board, right side (positive
+// x is "right" for both players under the fixed-camera/world-mirror scheme),
+// and safely inside the board's actual footprint (points reach z ~0.204,
+// the base edge ~0.24) rather than past its edge.
+const DICE_LAND_X = 0.15;
+const DICE_LAND_Z = 0.13;
+
 export class Board3D {
   constructor(rootEl, { onMoveChosen }) {
     this.rootEl = rootEl;
@@ -607,10 +614,13 @@ export class Board3D {
     while (this.diceGroup.children.length) this.diceGroup.remove(this.diceGroup.children[0]);
 
     this.cupGroup.visible = true;
-    // Fixed position (near the mover's own home row) — cupGroup is a child
-    // of worldGroup, so Black's world-mirror already relocates this to the
-    // correct near/bottom side automatically; no per-color sign needed here.
-    this.cupGroup.position.set(0, 0.05, 0.3);
+    // Land in the mover's own home board (positive x = "right" for both
+    // players, per the fixed-camera/world-mirror scheme) and within the
+    // board's actual footprint (z up to ~0.24) — the old z=0.3 was past the
+    // board's near edge entirely, so the throw visibly landed off the board.
+    // cupGroup is a child of worldGroup, so Black's world-mirror already
+    // relocates this to the correct near/bottom side; no per-color sign needed.
+    this.cupGroup.position.set(DICE_LAND_X, 0.05, DICE_LAND_Z);
     this.cupGroup.scale.setScalar(0.6);
 
     await this._animate(500, (t) => {
@@ -641,7 +651,8 @@ export class Board3D {
     label.scale.set(0.025, 0.025, 1);
     label.position.set(0, 0.02, 0);
     group.add(label);
-    group.position.set(xOffset, 0.04, 0.3); // fixed; worldGroup mirror handles per-viewer side
+    // fixed landing spot (see playDiceRoll); worldGroup mirror handles per-viewer side
+    group.position.set(DICE_LAND_X + xOffset, 0.04, DICE_LAND_Z);
     return group;
   }
 
