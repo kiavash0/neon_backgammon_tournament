@@ -125,3 +125,13 @@ Every deviation from `NEON_BACKGAMMON_SPEC.md` is logged here with reasoning, pe
 **Also fixed in the same pass:** the dice were landing at `z=0.3`, past the board's actual footprint (`z` up to ~0.24) — every throw visibly landed in empty space off the board. Moved to land inside the board, on the right side of the mover's own home board.
 
 **Verified, not eyeballed:** two independent live rolls (values 3&4, then 6&1) were checked by reading each die's actual live `targetQuaternion` out of the running page and computing, in a from-scratch reimplementation of the rotation math, which value's local pip-face axis it rotates to world-up — both matched the server-reported dice values exactly (`upDot ≈ 1.0`, i.e. essentially perfect alignment). This was necessary because zoomed screenshots of small angled dice are genuinely ambiguous to eyeball (a cube viewed at an angle shows its top face plus 1–2 side faces simultaneously, same as a real thrown die) and had already produced one inconclusive read during this work — the numeric check removes that ambiguity entirely.
+
+## ADR-010: Dice land on a provably checker-free centerline, not a dynamic collision scan
+
+**Phase:** A8 follow-up (3D board polish, user report)
+
+**Decision:** Moved the dice landing spot from `z=0.13` to `z=0` — the horizontal gap between the near (`z=+0.204`) and far (`z=-0.204`) rows of points. The user asked for "middle right" placement and suggested a dynamic checker-position scan to avoid collisions; a scan isn't needed, because `z=0` is **mathematically guaranteed** collision-free in every possible game state, not just checked-and-probably-fine: `_redrawCheckers` stacks each point's row inward at most `LAYER_SIZE=5` checkers deep (`CHECKER_STACK_FIRST + 4*CHECKER_STACK_STEP ≈ 0.176` from the point's outer edge), so even a maxed-out row stops at `z ≈ 0.204 - 0.176 = 0.028` — the centerline is never reachable by construction. The previous `z=0.13` sat inside the range a 2-3-checker stack (a very common in-game state) could reach, which was the actual collision being reported.
+
+**Why not build the dynamic scan anyway:** a proven-always-safe fixed position is strictly better engineering than a heuristic runtime check — zero extra computation, no edge cases to get wrong, and no risk of the scan itself having a bug. Worth revisiting only if a future change (e.g. deeper stacking, different board proportions) invalidates the `0.028` margin.
+
+**Verified live:** screenshot at game start confirms dice land in the open center-right area with no visual overlap with any checker stack.
